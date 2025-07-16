@@ -12,3 +12,8 @@ kubernetes:
   label: Kubernetes
   permalink: /kubernetes
   description: kubernetes
+
+etc:
+  label: Etc
+  permalink: /etc
+  description: etc
