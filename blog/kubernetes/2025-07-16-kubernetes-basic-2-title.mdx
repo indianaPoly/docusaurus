@@ -1,0 +1,193 @@
+---
+title: Kubernetes Basic(1)
+authors: [hyeonlim]
+tags: [TIL, Kubernetes]
+---
+
+## volume
+
+- `Persistent Volume Access Mode`의 모델은 아래 4개의 모드가 있어요.
+
+  - ReadWriteOnce (RWO)
+  - ReadOnlyMany (ROX) : 로그를 주로 읽을 때 사용해요.
+  - ReadWriteMany (RWX) : 분산형 데이터베이스에서 주로 사용해요.
+  - ReadWriteOncePOD (RWOP)
+
+- 컨테이너는 볼륨을 마운트를 하면 POD 안에서는 공유가 가능해져요. 노드 입장에서 보면 해당 노드에 속해있는 POD에 대해서는 같이 읽고 쓸 수 있다는 것을 의미해요.
+
+- pv-w-pvc 와 pv-w-sc의 차이점을 아시나요?
+
+  - pv-w-pvc는 AWS의 Elastic Blokc Store 의 디스크 중 하나를 볼륨으로 설정해요. zone에 해당하는 볼륨을 설정하고 해당 볼륨을 pv로 해야지만 k8s가 해당 볼륨을 인식을 해요.
+    pvc를 설장하기 위해서는 storageClassName을 빈문자열로 두면 돼요.
+
+  ```yml
+  spec:
+  storageClassName: ""
+  ```
+
+  - pv-w-sc는 sc(aws에서는 gp2라고 해요.)를 설정만 해두면 pv-w-pvc의 과정을 자동으로 설정해요. 이후 과정은 pvc와 동일하게 진행이 되요. 이렇게 진행을 디스크를 삭제하고 생성하는 책임이 개발자로 역할이 넘어가면서 관리자의 관리 부담이 줄어들어요.
+  - 따라서 pvc는 정적 프로비저닝이라고 하고, sc는 동적 프로비저닝이라고 해요.
+
+## CICD
+
+- AWS에는 code deploy(CI), commit, code pipe line(CD) 이렇게 3가지의 서비스가 있어요.
+  - commit은 곧 없어질 예정이에요.
+  - code deploy를 사용하려면 산출된 결과물(압축 파일)을 S3에 저장을 해야해요. - app.spec.yml 파일이 있어야 해여.
+
+### CI: continuous Integration
+
+CI의 순서는 아래와 같아요.
+
+```
+빌드 -> 테스트(테스트의 종류에는 유닛 테스트, e2e 테스트, 부하 테스트가 있어요) -> 취약점 검사 (코드 정적 분석) -> 코드 리뷰 | 코드 컨밴션
+```
+
+- 예전에는 최종산출물이 Artifact이 나왔어요. Artifact는 .jar 이런게 있어요.
+- 요즘에는 최종산출물이 container image가 나와요.
+
+### CD: continuous Delivery, Deployment
+
+- Delivery는 마지막 배포는 사림이 직접 진행을 해요. 하지만 Deployment는 배포하는 전과정이 자동으로 이루어져요.
+
+- 주로 사용되는 CI,CD 툴은 github action, gitlab runner, Jenkins, CircleCI pipe, bitbucket pipeline 등이 활용이 돼요.
+
+  - github action : 많이 사용되는 이유는 접근하기 쉽기 때문이에요. 코드가 공개가 되어있어 보안상 문제가 있을 거 같지만 매일 fetch가 이루어지기 때문에 보안상 안전해요.
+  - gitlab runner : 설치해서 사용을 해요. (공공기관 같은데에서 주로 사용해요.)
+  - Circle CI : 오픈소스 프로젝트에서 많이 사용해요.
+  - Jenkins: 스크립트형으로 작성되기 때문에 명령형이에요.
+
+- CD만 전문적으로 하는 도구들이 있는데 나온 이유는 컨테이너가 나오면서 배포 전략이 다양하게 생겼기 때문이에요.
+
+  - ArgoCD (제일 빠르다는 점 때문에 제일 많이 사용해요.)
+  - FluxCD
+  - Spinnake (대규모 시스템이 적합해요.)
+  - JenkinsX
+
+---
+
+# 실습
+
+### 랜덤으로 명언을 보여주는 간단한 서비스(empty dir)
+
+속도가 느리다고 한다면 이것을 사용해서 빠르게 처리할 수 있어요.
+medium: Memory를 설정을 하면 OS의 메모리 기반 파일시스템을 사용해요. 따라서 디스크보다 더 빠른 I/O 성능을 제공해요.
+
+```yml
+volumes:
+  - name: cache-volume
+    emptyDir:
+      medium: Memory
+      sizeLimit: 64Mi
+```
+
+해당 프로젝트의 경우 context는 aws로 설정이 되어있어요.
+
+왜 해당 프로젝트에서는 emptyDir이 적절할까요?
+
+- 명언 데이터들은 휘발성/임시 콘텐츠이므로, Pod가 재시작되면 새로 생성되어도 무방해요.
+- html-generator가 생성하고, nginx가 읽어야하므로 공유 스토리지가 필요해요. 그런데 외부 스토리지 연동이 불필요하기 때문이기도 해요.
+- 속도 역시 빠르다는 장점이 있어요.
+
+```yml (fortune-deploy.yml)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fortune-deployment
+  labels:
+    app: fortune
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: fortune
+  template:
+    metadata:
+      labels:
+        app: fortune
+    spec:
+      containers:
+        - image: <이미지를 가져와야해요.>
+          name: html-generator
+          volumeMounts:
+            - name: html
+              mountPath: /var/htdocs
+        - image: nginx:alpine
+          name: web-server
+          volumeMounts:
+            - name: html
+              mountPath: /usr/share/nginx/html
+              readOnly: true
+          ports:
+            - containerPort: 80
+              protocol: TCP
+      volumes:
+        - name: html
+          emptyDir: {}
+```
+
+```yml
+# fortune-lb.yml
+apiVersion: v1
+kind: Service
+metadata:
+  name: fortune-lb
+  # annotations을 설정 해주지 않으면 aws에서는 외부에 접속을 허용하지 않아요.
+  annotations:
+    # VPC 외부 접속이 가능하도록 해요.
+    service.beta.kubernetes.io/aws-load-balancer-type: external
+
+    # 노드가 아니라 POD IP로 직접 전달해요.
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+
+    # 공인 IP를 사용할 수 있어요.
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+spec:
+  selector:
+    app: fortune
+  ports:
+    - port: 80
+      targetPort: 80
+  type: LoadBalancer
+```
+
+### Docker ARG vs Yaml ENV vs CONFIGMAP ENV 비교 실습
+
+Docker ARG의 경우에는 args를 설정하여 넘겨줄 수 있어요.
+
+```Dockerfile
+containers:
+  - image: hyeonlim/fortune:args
+    args: ["5"]
+    name: html-generator
+```
+
+yml을 통해서도 args를 설정해줄 수 있어요. 설정은 yml 파일에 아래와 같이 설정을 해주면 돼요.
+
+```yml
+env:
+# 컨테이너의 매개변수가 아니라 환경변수로 들어가요. 따라서 효율적으로 전달을 할 수 있어요.
+- name: INTERVAL
+    value: "30"
+```
+
+CONFIGMAP을 생성을 해줄 수 있어요. 아래 명령어를 통해 확인도 가능해요.
+
+```bash
+kubectl create configmap fortune-config --from-literal=sleep-interval=7
+
+kubectl get cm fortune-config
+```
+
+아래 사진의 cli를 입력하게 되면 사진과 같이 값이 들어가 있는 것을 확인할 수 있어요.
+
+<img src="/img/blog/kubernetes/2025-07-16/img1.png" />
+
+- Kubernetes Pod에서 ConfigMap의 값을 환경 변수로 주입할 때 사용하지만 목적과 범위가 달라요.
+
+<img src="/img/blog/kubernetes/2025-07-16/img2.png" />
+
+    - 해당 사진에서는 특정 Key만 환경 변수로 주입이 되고 개별 환경 변수 설정이 필요할 때 주로 사용해요.
+
+<img src="/img/blog/kubernetes/2025-07-16/img3.png" />
+
+    - 해당 사진은 ConfigMap의 모든 Key를 환경 변수로 자동 주입해요. 모든 설정을 한꺼번에 주입하고 싶을 때 사용해요.
