@@ -1,0 +1,395 @@
+---
+title: Kubernetes Basic(3)
+authors: [hyeonlim]
+tags: [TIL, Kubernetes]
+---
+
+## Secret
+
+- 생성하는 방법은 cli로 하거나 .yml 파일을 작성해서 만드는 방법이 있어요.
+
+```bash
+kubectl create secret generic my-secret \
+--from-literal=username=admin \
+--from-literal=password=1234
+```
+
+cli로 값을 확인을 해주려면, 아래 cli 명령을 통해서 yml을 출력할 수 있어요.
+
+```bash
+kubectl get secret my-secret -o yaml
+```
+
+<img src="/img/blog/kubernetes/2025-07-17/img1.png" />
+여기서 출력되는 데이터 역시 base64로 인코딩이 되기 때문에 이를 확인해주기 위해서는
+복호화해주어야 해요.
+
+yml 파일로 넣어줄때는 base64 인코딩된 값을 넣어주어야 해요.
+
+```yml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: my-secret2
+type: Opaque
+data:
+  username: YWRtaW4= # admin (base64 인코딩)
+  password: MTIzNA== # 1234 (base64 인코딩)
+```
+
+위와 같이 설정을 하고 난 이후에 환경변수로 넘겨줄 수도 있고, 볼륨으로 넘겨줄 수도 있어요.
+
+환경변수로 넘겨 줄때는 아래와 같이 key값을 지정해서 넘겨주어야 해요.
+
+```yml
+spec:
+  containers:
+    - name: mycontainer
+      image: nginx
+      env:
+        - name: USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: my-secret
+              key: username
+        - name: PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: my-secret
+              key: password
+```
+
+볼륨으로 넘겨주는 것은 따로 key를 설정해주는 것이 아니라 생성한 secret를 전체 넘겨주어요.
+
+```yml
+spec:
+  containers:
+    - name: mycontainer
+      image: nginx
+      volumeMounts:
+        - name: secret-volume
+          mountPath: "/etc/secret"
+          readOnly: true
+  volumes:
+    - name: secret-volume
+      secret:
+        secretName: my-secret
+```
+
+## StateFulSet
+
+- 생성된 Pod마다 별도의 디스크 공간을 가져야하는 경우에 주로 사용해요. 분산 기반 애플리케이션의 경우 호스트명과 IP 등이 바뀌면 안돼요.
+
+- ReplicaSet의 경우에는 생성 및 삭제가 동시에 진행되는 반면에, StatefullSet은 순차적으로 진행되어서 시간 조절이 가능해요.
+
+- Pod를 삭제하는 경우 ID 값이 가장 큰 것부터 삭제가 돼요. 제일 마지막에 생성된 Pod가 먼저 삭제가 되고 마스터의 경우에는 가장 마지막에 삭제가 돼요.
+
+- 스케일리에서 Pod가 삭제가 되면 해당 Pod가 물고 있는 PVC는 Pod에 대한 정보를 가지고 있어요. 따라서 Pod를 생성하면 이전과 동일한 ID로 재생성이 돼요.
+
+‼ Deployment는 Elastic Block Store를 사용하지 않아요. 만약 Deployment에 디스크를 붙히라고 한다면 EFS를 붙혀야 해요.
+
+## Kustomize / Helm 차트
+
+2개를 같이 사용할 수 있지만 거의 같이 사용하지 않아요.
+
+### Kustomize
+
+- base + overlay를 조합하여 환경별 배포 YAML을 kustomize build 명령으로 추출합니다.
+
+```csharp
+kustomize/
+├── base/
+│   └── deployment.yaml
+├── overlays/
+│   ├── dev/
+│   │   └── kustomization.yaml
+│   ├── stage/
+│   └── prod/
+│   └── aws/
+│   └── gcp/
+
+```
+
+### Helm chart
+
+- 예를 들어서 MYSQL 개발자가 yml을 제공을 하고 소비자가 환경변수나 설정 등을 변경하고 싶을 때 :
+
+  - 개발자가 Helm 차트를 활용하면 변경 가능한 인터페이스를 제공해줘요. 이를 통해서 사용자는 환경변수나 설정을 쉽게 바꿀 수 있어요.
+
+**설치 방법**
+
+아래와 같은 명령어를 순서대로 입력을 해주면 helm chart를 설치할 수 있어요.
+
+```bash
+curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3
+
+chmod 700 get_helm.sh
+
+./get_helm.sh
+```
+
+잘 설치가 되었는지 확인하기 위해서 mysql를 검색을 해보면 잘 나오는 것을 확인할 수 있어요.
+
+```bash
+helm show chart stable/mysql
+
+apiVersion: v1
+appVersion: 5.7.30
+deprecated: true
+description: DEPRECATED - Fast, reliable, scalable, and easy to use open-source relational
+  database system.
+home: https://www.mysql.com/
+icon: https://www.mysql.com/common/logos/logo-mysql-170x115.png
+keywords:
+- mysql
+- database
+- sql
+name: mysql
+sources:
+- https://github.com/kubernetes/charts
+- https://github.com/docker-library/mysql
+version: 1.6.9
+```
+
+**helm chart 생성하기**
+
+해당 명령어를 통해서 생성해주세요.
+
+```bash
+helm create <이름>
+```
+
+templates 폴더에서 deployment.yml와 service.yml을 생성을 해줘요. \_helpers.tpl을 제외한 나머지 파일들은 삭제를 진행해줘요.
+
+```yml
+# deployment.yml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.container.name }}
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.container.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.container.name }}
+        environment: {{ .Values.environment }}
+    spec:
+      containers:
+        - name: {{ .Values.container.name }}
+          image: {{ .Values.container.image }}:{{ .Values.container.tag }}
+          ports:
+            - containerPort: {{ .Values.container.port }}
+          env:
+            - name: environment
+              value: {{ .Values.environment }}
+```
+
+```yml
+# service.yml
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.container.name }}-service
+  labels:
+    app: {{ .Values.container.name }}
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: {{ .Values.container.port }}
+  selector:
+    app: {{ .Values.container.name }}
+  type: LoadBalancer
+```
+
+기존의 values.yaml을 전체 삭제를 해줘요. 그런다음에 아래를 넣어줘요. 이렇게 하면 사용자는 여기에 지정된 변수만 건들 수 있다는 것을 알려줘요.
+
+```yml
+environment: development
+container:
+  name: nginx
+  port: 80
+  image: nginx
+  tag: latest
+replicas: 2
+```
+
+위에서 작업한 것을 설치를 진행해줘요.
+
+```bash
+helm install nginxstd ./nginxstd
+```
+
+패키지를 생성해주고 파일을 이동시켜줍니다. 그리고 helm repository 파일을 생성해요.
+
+```bash
+helm package ./nginxstd
+
+mkdir prod
+
+mv ./nginx-std-0.1.0.tgz ./prod/
+
+# 리포지토리 파일 생성 (index.yaml)
+heml repo index ./prod
+
+# 파일 생성 확인
+cat ./prod/index.yaml
+```
+
+위 작업까지 다 했다면 Github Repository를 만들어요. 그리고 Repository에 우리가 작업한 것을 올려줘요. Github에 정상적으로 등록이 완료가 되었다면 아래 명령어를 통해서 repository를 추가시켜줍니다.
+
+```bash
+helm repo add helm-prod <자신 github 주소에 올라가 있는 helm Repository>
+```
+
+---
+
+## 실습
+
+### MySQL DB Secret 생성 및 사용
+
+Secret를 생성하는데 요구조건은 아래와 같아요. 해당 내용을 넣기 위해서는 그대로 작성하는 것이 아니라 base64로 인코딩을 진행해야해요.
+
+```txt
+MYSQL_USER: user1
+MYSQL_PASSWORD: pw1234
+MYSQL_ROOT_PASSWORD: rootpw9876
+MYSQL_DATABASE: mydb
+```
+
+첫 번째로 Secret를 생성을 해요.
+
+```yml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mysql-secret
+  labels:
+    app: mysql
+data:
+  MYSQL_USER: dXNlcjE= #user1
+  MYSQL_PASSWORD: cHcxMjM0 #pw1234
+  MYSQL_ROOT_PASSWORD: cm9vdHB3OTg3Ng== #rootpw9876
+  MYSQL_DATABASE: bXlkYg== #mydb
+```
+
+`kubectl apply -f ./파일이름` 명령어로 실행을 하면 생성이 돼요.
+
+생성을 해준다음에 환경변수 방법을 사용해서 Pod를 생성을 해줄거에요. 이 때 secretKeyRef의 이름을 생성한 secret의 이름으로 지정을 해주면 돼요.
+
+```yml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mysql-secret-env-pod
+spec:
+  containers:
+    - name: mysql-test
+      image: mysql:8.0
+      env:
+        - name: MYSQL_USER
+          valueFrom:
+            secretKeyRef:
+              name: mysql-secret
+              key: MYSQL_USER
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql-secret
+              key: MYSQL_PASSWORD
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql-secret
+              key: MYSQL_ROOT_PASSWORD
+        - name: MYSQL_DATABASE
+          valueFrom:
+            secretKeyRef:
+              name: mysql-secret
+              key: MYSQL_DATABASE
+```
+
+### StatefulSet
+
+```yml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: nodejs-sfs
+spec:
+  selector:
+    matchLabels:
+      app: nodejs-sfs
+  serviceName: nodejs-sfs
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: nodejs-sfs
+    spec:
+      containers:
+        - name: nodejs-sfs
+          image: hyeonlim/nodejs:sfs
+          ports:
+            - name: http
+              containerPort: 8080
+          volumeMounts:
+            - name: data
+              mountPath: /var/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        resources:
+          requests:
+            storage: 1Mi
+        accessModes:
+          - ReadWriteOnce
+```
+
+해당 작업을 통해서 아래와 같은 리스소를 가지는 PVC를 만들어주고, volumeClaimTemplates를 통해서 Pod 마다 독립적인 PVC를 만들 수 있어요.
+
+```yml
+resources:
+  requests:
+    storage: 1Mi
+  accessModes:
+    - ReadWriteOnce
+```
+
+위 작업이 마무리가 되고 나면 load balancer를 설정하여 트래픽을 Pod 별로 분산을 진행해줘요.
+
+```yml
+apiVersion: v1
+kind: Service
+metadata:
+  name: nodesjs-sfs-lb
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: external
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+spec:
+  type: LoadBalancer
+  sessionAffinity: None
+  ports:
+    - port: 80
+      targetPort: 8080
+  selector:
+    app: nodejs-sfs
+```
+
+✅ 중요한 점
+
+- StatefulSet Pod마다 데이터가 다르면, 로드밸런서로 접근한 사용자마다 다른 결과를 받게 돼요. 따라서 이러한 문제를 해결하기 위해서
+
+  - Shared Storage (NFS, S3)를 사용해요.
+
+  - 사용자 마다 Pod 접속을 고정을 시킬 수 있어요. sticky session이라고 해요. 아래와 같은 예시로 설정을 해줄 수 있어요.
+
+  ```yml
+  sessionAffinity: ClientIP
+  ```
