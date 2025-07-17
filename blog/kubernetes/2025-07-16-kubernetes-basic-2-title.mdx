@@ -19,6 +19,7 @@ tags: [TIL, Kubernetes]
 
   - pv-w-pvc는 AWS의 Elastic Blokc Store 의 디스크 중 하나를 볼륨으로 설정해요. zone에 해당하는 볼륨을 설정하고 해당 볼륨을 pv로 해야지만 k8s가 해당 볼륨을 인식을 해요.
     pvc를 설장하기 위해서는 storageClassName을 빈문자열로 두면 돼요.
+    - pvc는 pod와 상관이 없어요. pod가 삭제된다고 해서 pvc가 삭제되는 것은 아니에요.
 
   ```yml
   spec:
@@ -26,6 +27,13 @@ tags: [TIL, Kubernetes]
   ```
 
   - pv-w-sc는 sc(aws에서는 gp2라고 해요.)를 설정만 해두면 pv-w-pvc의 과정을 자동으로 설정해요. 이후 과정은 pvc와 동일하게 진행이 되요. 이렇게 진행을 디스크를 삭제하고 생성하는 책임이 개발자로 역할이 넘어가면서 관리자의 관리 부담이 줄어들어요.
+    - gp2를 default를 설정하기 위해서는 아래와 같은 명령어를 작성을 해줘요.
+
+  ```bash
+    kubectl patch storageclass gp2 -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+
+  ```
+
   - 따라서 pvc는 정적 프로비저닝이라고 하고, sc는 동적 프로비저닝이라고 해요.
 
 ## CICD
