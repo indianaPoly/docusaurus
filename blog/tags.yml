@@ -13,6 +13,11 @@ kubernetes:
   permalink: /kubernetes
   description: kubernetes
 
+terraform:
+  label: Terraform
+  permalink: /terraform
+  description: terraform
+
 etc:
   label: Etc
   permalink: /etc
