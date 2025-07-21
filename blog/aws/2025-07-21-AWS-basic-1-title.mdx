@@ -1,0 +1,193 @@
+---
+title: AWS basic (1)
+authors: [hyeonlim]
+tags: [TIL, AWS]
+---
+
+## 네이밍 컨벤션
+
+회사마다 기준이 있기도 하고, 자신마다 목표를 세워두고 진행할 수 있어요.
+
+- 시스템 개발 환경
+dev(development), stg(staging), qa, prd
+
+- 시스템 명칭
+erp, crm, ecommerce, bank
+
+- 리소스 명칭
+ec2, rds, dynamodb, redis
+
+- 시스템 역할
+web, was, aip, bastion
+
+- a + 넘버링
+pub01a, pri01c
+
+## Identity and Access Management
+
+누가(Identity) 어떤 것을 이용할 수 있는지 없는지에 대한 것입니다.
+
+Root User는 개정 생성시 발급이 되는데 초기 설정 이후에는 사용하지 않는 것을 권장해요
+1. Root User MFA 설정
+2. Password Policy 설정
+3. 대체 연락처 설정
+4. Admin User 생성 (여기서 작업을 하는 것이 좋다.)
+
+=> 해당 작업을 제외한 모든 작업에서 Root User 사용을 제한하는 것이 좋아요. 만약 Root User와 동일한 권한을 행세하고 싶으면 아래와 같이 진행을 주면 돼요.
+
+아래 사진을 보게 되면 IAM에 접속하여 사용자를 하나 생성을 해주는데 이 때 AdministratorAccess를 지정해주면 Root 계정이 아닌 다른 계정에 전체 권한을 부여할 수 있도록 해줍니다.
+Admin의 Policy(json)은 아래와 같이 구성이 되어있어요.
+
+```JSON
+{
+  "Version" : "2012-10-17",
+  "Statement" : [
+    {
+      "Effect" : "Allow",
+      "Action" : "*",
+      "Resource" : "*"
+    }
+  ]
+}
+```
+
+<img src="/img/blog/aws/2025-07-21/img2.png" width={600} />
+
+- Identity (보안 주체, Principal)
+    - Root User : 모든 권한을 소유, 초기 설정 후에 사용을 지양, 등록된 이메일 주소로 접근
+    - IAM User : 부여된 권한만 행사, 장기자격증명, 생성된 자격(ID, PW)로 접근
+    - IAM Role : 부여된 권한만 행사, 임시자격증명, AWS API를 사용해 접근
+    - AWS Service(application) : 사용자 대신 작업 수행, IAM User / IAM Role을 이용해서 작업을 대신 수행
+
+- Access Management
+    - IAM은 JSON 구조로 구성된 정책(policy) 문서를 기반으로 사용자의 권한을 관리
+
+```JSON
+{
+    "누가": "IAM User / AWS Service ..",
+    "무엇을 (대상)" : "S3 / EC2 / DynamoDB ..",
+    "어떻게 (행위)": "GET / DELETE / CREATE ..",
+    "할 수 있다/없다": "true/false"
+}
+```
+
+JSON 정책 -> Role에게 부여하고 이것을 다시 Service에 줄 수 있어요. EC2 인스턴스에 동일한 IAM 정책을 부여하고 싶으면 Role에 역할을 부여하고 해당 역할을 부여해주면 돼요.
+
+<img src="/img/blog/aws/2025-07-21/img1.png" width={600} />
+
+## Network Baseline
+
+네트워크 3가지 설계 포인트
+
+- segmentation : private 환경을 만들어 두는 것입니다.
+    - CIDR-Subnetting, Public & Private ...
+
+- connectivity : private 환경과 연결이 되는 것을 말합니다.
+    - IGW, NAT, Elastic IP, Site to Site VPN ...
+
+- security : 열린 것들을 안전하게 방어하는 것입니다.
+    - 보안 그룹, Network-ACL, WAF ...
+
+Private IP 주소 대역은 아래 사진과 같이 RFC 1918 문서에 표준으로 지정하고 있습니다. 따라서 VPC 네트워크를 설정하게 된다면 사진과 같은 네트워크를 설정하면 됩니다.
+
+<img src="/img/blog/aws/2025-07-21/img1.png" width={600} />
+
+AWS에서는 예약된 IP 5개를 제외한 나머지를 자유롭게 사용할 수 있어요.
+- x.x.x.0 : Network Address
+- x.x.x.255 : Broadcast Address
+- x.x.x.1 : VPC Router
+- x.x.x.2 : DNS server
+- x.x.x.3 : Futuer use
+
+## VPC (Virtual Private Cloud)
+
+VPC는 다른 네트워크 환경 및 외부와 격리된 가상의 사설 네트워크를 말해요.
+
+- AWS 안에서는 최소 /28 ~ 최대 /16 생성할 수 있어요.
+- VPC는 최대 5개 생성 가능하며, 더 추가를 하기 위해서는 AWS에 요청을 해주면 돼요.
+- CIDR은 한 번 설정하면 수정이 불가능합니다.
+    - 추가하고 싶으면 Secondary를 추가해서 네트워크 확장을 할 수 있어요. 이것도 최대 5개인데 5개 초과해서 사용하기 위해서는 AWS에 요청을 해주면 됩니다.
+- VPC는 특정 Region에 종속 리소스 (리전안에서만 활동이 가능함)에요.
+    - 1개의 VPC로 모든 Region을 커버하는 것을 불가능합니다.
+
+- 외부와 격리된 VPC는 Internet GateWay를 통해서만 인터넷과 통신을 가능해요.
+    - Internet Gateway는 생성 후 VPC에 할당하여 사용합니다.
+    - 1개의 VPC에는 1개의 Internet Gateway만 할당 가능합니다.
+
+- 격리된 network 간에 통신이 가능하도록 Routing Table을 설정해주면 됩니다.
+
+- NAT Gateway vs Routing Table
+    - Private Subnet의 리소스들이 Nat Gateway의 Public IP를 공유해 인터넷을 이용합니다. 내부 리소스가 외부로 접근하는 경우에만 허용해요.
+    - 외부에서 내부로 접속하는 트래픽은 처리할 수 없어요.
+
+<img src="/img/blog/aws/2025-07-21/img4.png" width={600}/>
+<img src="/img/blog/aws/2025-07-21/img5.png" width={600}/>
+
+## Network Security
+
+### Network ACL
+
+- 서브넷에 접근 허용할 트래픽 정보를 관리하는 가상의 방화벽이에요. (서브넷 단위로 적용 가능합니다.)
+- 1개의 NACL에 여러 개의 서브넷을 적용하는 것은 가능하나 그 반대는 불가능해요.
+- 상태 비저장 방식이어서 In-bound와 Out-bound 모두 규칙을 적용해주어야 해요.
+- 모든 트래픅을 허용하고, 차단할 IP 주소나 Port를 지정해서 차단하는 방식이라고 생각하면 편해요.
+
+
+### 보안 그룹
+- 리소스에 접근 허용할 트래픽 정보를 관리하는 가상의 방화벽이에요.
+- Elastic Network Interface에 여러 개의 보안 그룹 적용이 가능해요.
+- In-bound / Out-bound 트래픽의 허용 규칙만을 정의해요. 기본적으로는 다 막아두지만 특정한 것에 대해서 허용해요.
+- 보안 그룹은 상태 저장 방식의 방화벽이기 때문에 In-bound 허용 규칙이 적용이 되어있으면, Out-bound 허용 규칙이 없어도 통과할 수 있어요.
+- 리소스 단위로 각 허용되어야할 Protocol, Port를 세부적으로 지정하는 방식이라고 알고 있으면 돼요.
+
+## Elastic Compute Cloud (EC2)
+
+가상화된 컴퓨팅 자원(인스턴스를 제공)을 빌려줘요.
+
+### Naming Rule
+EC2 instance Type은 instance family, generation, attributes, size로 구성이 되어있어요.
+
+```txt
+ex. t4g. 2xlarge 를 보면 t(instance family) | 4(instance generation) | g(attributes) | 2xlarge(size)
+```
+- instance family: 기능 별로 그룹으로 묶어 패밀리 단위로 구분해요.
+<img src="/img/blog/aws/2025-07-21/img6.png" width={600}/>
+
+- instance generation
+    - 주기적으로 최신 기술을 반영한 인스턴스 세대를 출시해요.
+    - 이전 세대 인스턴스 대비 비용이 낮아지거나 성능이 향상돼요.
+    - 리전, 가용영역(AZ) 별로 지원되는 인스턴스 세대가 달라요.
+
+- attributes
+    - 추가 지원되는 기능에 따라 attributes가 붙어요.
+
+<img src="/img/blog/aws/2025-07-21/img7.png" width={600}/>
+
+### Amazon Machine Image(AMI)
+- EC2 인스턴스를 실행하는데 필요한 설정 정보를 모은 단위입니다.
+- AMI 구성 요소 아래와 3가지에요:
+    - 루트 볼륨 템플릿: 인스턴스 루트 볼륨에 사용되는 템플릿 (ex. 아마존 리눅스2, 우분투 리눅스 등)
+    - 인스턴스 시작 설정 값 : 인스턴스 타입, 네트워크 설정, 스토리지 구성
+    - AMI 권환 관리 정보(Permission): public / private
+- 리전 단위로 저장되며, 사용하려면 리전에 AMI가 없으면 리전 간 복사를 진행해요.
+- AMI 데이터 자체는 S3에 저장이 되며 저장 비용이 발생해요.
+
+- 실제 사용하는 사례는 아래와 같아요:
+    1. DevOps CI/CD 환경에서 개발 환경이 사전 구성된 AMI로 테스트 환경을 구성해요.
+    2. Autu Scaling을 통해 동일한 설정을 가진 인스턴스를 복제 생성해요.
+    3. 사내 지정된 보안 소프트웨어가 설치된 AMI 인스턴스를 생성할 때 사용해요.
+    4. 인스턴스 장애 발생 상황에서 사전에 백업한 인스턴스 AMI 이용하여 시스템을 복원해요.
+
+- AMI 의 종류는 아래와 같이 있어요:
+    1. AWS AMI : AWS가 기본적으로 제공하는 이미지입니다.
+    2. Marketplace AMI : third-party vender가 생성한 이미지입니다.
+    3. Community AMI : aws 사용자가 생성한 이미지이고 사용 전 보안과 안정성 검토가 필수에요. 
+    4. Sharing AMI : 특정 사용자 간에 공유하는 이미지로, 조직 내 협업, 특정 프로젝트에서 사용돼요.
+
+<img src="/img/blog/aws/2025-07-21/img8.png" width={600}/>
+
+### IP
+
+public IP는 서브넷에 생성할 때 자동 할당 되는 IP에요. 최근에는 IPv4 IP갯수가 부족해서 돈을 받아요.
+
+Elastic IP는 영구적인 IP로 인스턴스 중지 후에 다시 시작해도 같은 값을 유지해요.
