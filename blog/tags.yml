@@ -22,3 +22,8 @@ etc:
   label: Etc
   permalink: /etc
   description: etc
+
+aws:
+  label: AWS
+  permalink: /aws
+  description: aws
