@@ -1,0 +1,181 @@
+---
+title: AWS basic (2)
+authors: [hyeonlim]
+tags: [TIL, AWS]
+---
+
+{/* truncate */}
+
+## Elastic Load Balancer (ELB)
+
+### 개요
+클라이언트의 서비스 요청 트래픽을 여러 서버로 분산시켜 주는 서비스입니다. 부하로 인한 서비스 중단 및 성능 저하를 방지할 수 있어요.
+
+- 처리 방식은 아래와 같아요:
+    1. EC2를 타겟 그룹에 할당하고 로드 밸런서가 타겟 그룹을 연동하여 구성해요.
+    2. 타겟 그룹에서 상태 검사를 통해 정상적인 서버에게만 요청 전달합니다.
+    3. 수 십대의 서버가 구성되어 있어도 클라이언트는 단일 웹 서비스 endpoint로 접근할 수 있어요.
+
+완전 관리형 서비스여서 트래픽 요청이 많으면 ELB 시스템도 내부적으로 자동으로 확장해요. 시스템에 대한 업그레이드, 가용성. 관리 등은 AWS에서 지원을 해줘요.
+
+다른 AWS 서비스와 연계 지원도 합니다. AWS ACM 인증서와 연동하여 HTTPS 암호화 통신을 지원합니다. EC2, Auto-Scaling, Lambda, ECS, EKS 와 같은 컴퓨팅 서비스와 연계 사용할 수 있어요.
+
+<img src="/img/blog/aws/2025-07-22/img1.png" width={600}/>
+
+### 구성 요소
+
+- Listener
+    - 프로토콜, 포트를 기준으로 클라이언트 요청 수신 -> 요청 내용 검사 후 결과에 따라서 적절한 Target Group으로 전달합니다.
+    - 최소 1개 이상의 리스너가 필요하고, 최대 10개까지 설정할 수 있어요. SSL 인증서로 HTTPS를 적용 가능합니다.
+
+- Rule
+    - 구성요소는 우선순위, 조건, 동작으로 구성되어 있어요.
+    - 요청 검사 과정에서 설정된 조건에 따라 지정된 동작을 수행합니다.
+
+- Target Group
+    - EC2, Lambda, IP Address 등으로 구성되어 있습니다.
+    - 서버의 Health Check를 통해 서버 상태를 모니터링 합니다.
+
+<img src="/img/blog/aws/2025-07-22/img2.png" width={600}/>
+
+### LoadBalancer 종류
+
+- 로드밸런서의 종류에는 크게 4개가 있어요:
+    - Application Load Balancer: 
+        Application Layer (layer 7)에서 사용되는 LB 에요.
+        SSL Offload 기능을 제공해요.(클라이언트가 암호화해서 보냈는데 서버로 보낼 때는 plain text로 보냅니다. 암호화된 것을 복호화하는 과정에서 연산이 많이 일어나기 때문에 사용되는 개념이에요.)
+    - Network Load Balancer:
+        Elastic IP 적용이 가능하며 초당 수백만 건 요청 처리가 가능해서 ALB보다 성능이 좋아요.
+        S-NAT이 비활성화 상태에서 트래픽이 들어온다면 클라이언트 IP가 LB에서 변경된 채로 들어오는 것이 아니라 그대로 들어오기 때문에 서버에 도착을 하면 LB로 다시 응답을 보내주는 것이 아닌 NAT GW로 가서 클라이언트에게 전달이 돼요. (LB가 하는 역할이 하나가 되기 때문에 훨씬 성능이 좋아요.)
+        ```
+        ## DSR
+        client -> NLB -> Target Group -> NAT Gateway -> client 
+        ```
+    - Gateway Load Balancer
+
+주로 사용하는 것은 ALB, NLB 이렇게 2개를 주로 사용합니다. Classic Load Balancer는 사용을 하는 곳은 있지만 단종된 서비스 입니다.
+
+## Auto Scaling
+
+### 구성요소
+
+- Auto Scaling Group (ASG)
+    - 관리 대상 인스턴스를 논리적으로 모아 놓은 집합이에요.
+    - 최소 크기, 최대 크기, 희망 용량을 설정하고 이 범위 내에서 인스턴스를 생성 제거 합니다.
+    - 로드 밸런서의 특정 Target Group으로 포함되도록 지정 가능해요.
+- Launch Template
+    - auto Scaling을 통해서 새로 생성할 인스턴스의 설정 값의 모음입니다.
+    - AMI, TYPE, Security Group, Key-Pair, User Data 등을 정의해요.
+    - 수정이 불가능하고, 새로운 버전을 생성한 뒤에 ASG 설정에서 버전 업데이트가 필요합니다.
+- Scaling Policies
+    - 인스턴스를 조정하는 기준, 조건을 설정하는 요소에요.
+    - Scheduled, Dynamic, Predicitive Scaling 방식을 지원합니다.
+
+### 동작 과정
+1. ALB(Application)에서 EC2 상태 검사를 수행합니다.
+2. Unhealthy 상태 EC2가 발견이 되면 ASG로 전달합니다.
+3. Launch Template 를 Trigger 합니다.
+4. EC2 생성 및 ASG, Target Group에 등록합니다.
+5. 인스턴스 매트릭을 수빚하고 CloudWatch로 전달합니다.
+6. Scaling Policy 조건을 충족하면 알람이 울립니다.
+7. Launch Template를 Trigger 합니다.
+8. EC2 생성 및 ASG, Target Group에 등록합니다.
+
+
+<img src="/img/blog/aws/2025-07-22/img3.png" width={600}/>
+
+## Storage Service
+
+### Block Storage
+
+대표적으로 AMAZON EBS(Elastic Block Store)
+
+데이터를 일정한 크기의 블록 단위로 저장해요. 블록의 고유 주소로 접근하여 빠른 접근이 가능합니다. 또한, 서로 다른 OS에서 접근가능해요.
+
+**Elastic Block Store**
+- EC2 인스턴스에 연결해 사용할 수 있는 네트워크 기반 Block Storage 서비스입니다.
+    - 직접적으로 연결이 되어있지 않아요. 그래서 VM이 끊겨도 주소 기반이기 때문에 접근할 수 있습니다.
+- Data volume, snapshot에 대한 암호화를 지원해줘요.
+- 하나의 인스턴스에 연결해 사용하며, EC2 인스턴스와 별개로 관리가 됩니다. 
+    - 하나의 인스턴스에 2개 이상의 EBS 볼륨이 연결이 가능합니다.
+    - 볼륨 타입이 io1, 2 타입인 경우네는 동일한 가용영역 내에서 여러 인스턴스에 연결이 가능해요.
+    - 연결되어 있던 EBS가 분리된 후에 다른 인스턴스에 연결할 수 있어요.
+- 특정 가용영역안에서만 생성되기 때문에 가용영역간 EBS 볼륨 공유가 불가능해요.
+    - 만약 정보가 다른 가용영역에 필요로 한다면 스냅샷을 활용해 사용할 수 있어요.
+
+<img src="/img/blog/aws/2025-07-22/img4.png" width={600}/>
+
+**Instance Store**
+- 호스트 컴퓨터의 디스크를 직접 연결해요. 가장 빠른 소곧의 디스크 타입입니다.
+- 비영구적 저장소(휘발성)이어서 인스턴스 중지 및 종료 시에 하드웨어가 바뀌면서 데이터를 손실할 수 있습니다.
+- 연결해지가 불가능하고, 인스턴스 패밀리에 따라 디스크의 종류와 사이즈가 달라요.
+- 대표적으로 카산드라와 같은 것들이 사용해요.
+
+<img src="/img/blog/aws/2025-07-22/img5.png" width={600}/>
+
+**EBS Snapshot**
+- 특정 시점에서 EBS 볼륨에 저장된 데이터를 복사해둔 데이터를 의미해요.
+- 증분 방식 저장(로그와 같은 값들을 저장, 특정 시점으로 맞춰줄 수 있어요.)을 통해서 저장 용량을 효율적으로 관리할 수 있어요.
+- snapshot은 S3 버킷에 보관돼요. (ec2 인스턴스에서만 볼 수 있고, S3에서는 보이지 않아요.)
+
+### File Storage
+
+대표적으로 AMAZON EFS, AMAZON FSx 가 있어요.
+
+파일과 폴더의 계충 구조로 저장되어 있어요. 파일, 폴더가 많아질 수록 파일 탐색 성능이 저하돼요.
+
+파일 시스템(프로토콜)에 따라서 OS 접근이 안될 수 있어요.
+
+### Object Storage
+
+대표적으로 S3가 있어요.
+
+오브젝트 단위로 데이터를 저장하고 Application 단에서 동작합니다. 물리적 제약이 적어 원하는 만큼 확장 가능합니다.
+
+오브젝트 별로 KEY:VAULE 형태로 구성 되어있습니다.
+
+**Simple Storage Service**
+
+- 웹 서비스를 이용해 어디서나 접근 가능한 object storage에요. 용량 제한 없이 무제한 확장 가능한 스토리지 입니다. 사용한 만큼 과금이 되요.
+- 웹 브라우저 GUI를 이용하거나, REST API를 이용해 데이터를 관리합니다. 단순 데이터 저장소로 동작하며, 프로그램 설치 작업은 제한돼요.
+- 정적 웹 호스팅을 지원해요.
+
+- 버킷을 생성할 때는 고유한 이름으로 생성해야하며, 생성되는 위치 지정이 필요합니다.
+- 버킷 내 저장되는 Object마다 KEY VALUE 로 맵핑이 됩니다.
+- 객체를 저장하게 되면 S3 URI(AWS 내부 작업용 식별자), Object URL(http 기반의 외부 접속용 식별자) 정보를 할당해줍니다.
+    - Object을 브라우저에서 띄울 때 사용합니다. (조회용으로 사용해요.)
+
+S3 Bucket은 아래와 같아요.
+- Effect : Action에 명시된 작업 권환을 Allow 하거나 Deny 합니다.
+- Principal : 명시된 대상에 접근을 허용할 보안주체 (User, Role 등등)을 지정해요.
+- Action : 서비스명과 행위 형태로 구성이 되어있어요.
+- Resource : 정책 적용대상의 ARN 정보를 입력해요.
+- Condition: 정책이 적용될 조건을 지정해줘요.
+
+```JSON
+{
+    "Statement": [
+        {
+            "Effect": "Allow", // or "Deny"
+            "Principal": {
+                "AWS": "arn:...:user"
+            },
+            "Action": "s3:GetObejct",
+            "Resource": "arn:...:my_bucket/*",
+            "Condition": {
+                "IpAddress": {
+                    "aws:SourceIp": [
+                        "100.10.1.1/32",
+                        "10.0.0.0/16"
+                    ]
+                }
+            }
+        }
+    ]
+}
+```
+
+- S3 public Access Block
+    - bucket policy, s3 access control list 설정보다는 public access block이 우선입니다.
+    - 기본적으로 버킷은 private 상태로 생성되지만, 데이터를 안전하게 보호하기 위해서 public 접근 허용 정책이 적용되는 것을 방지하기 위한 도구입니다.
+    - Bucket policy, access control list 등에서 public 접근 권한을 허용하는 설정을 무시하거나 차단합니다.
