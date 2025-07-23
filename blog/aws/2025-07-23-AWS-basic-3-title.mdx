@@ -1,0 +1,118 @@
+---
+title: AWS basic (3)
+authors: [hyeonlim]
+tags: [TIL, AWS]
+---
+
+{/* truncate */}
+
+## Database Service
+
+### AWS RDS개요
+- 관계형 데이터베이스를 완전관리형으로 제공하는 서비스입니다.
+- RDS 서버 시스템을 직접 접속이 불가능해요.
+- VPC 내부에 배치해서 사용하며 VPC 환경을 이용한 보안 환경 구성 외에도 IAM, Secret Manager 등의 서비스를 통해 데이터베이스 보안을 강화할 수 있어요.
+
+AWS RDS DBMS engine type은 아래와 같습니다.
+<img src="/img/blog/aws/2025-07-23/img1.png" width={600} />
+
+### 백업
+
+자동 백업과 수동 백업으로 나누어져있어요:
+- 자동 백업
+    - 스냅샷과 트랜잭션 로그를 참고해서 데이터를 백업하는 방식으로 기본적으로 default로 활성화 됩니다. 특정 시점 데이터 상태로 복구할 수 있어요.
+    - 원본 DBMS가 삭제되면 함께 삭제 되는 데이터에요.
+
+- 수동 백업
+    - 사용자가 수동으로 원하는 시점에 스냅샷을 생성하는 방식이에요. 원본 DBMS가 삭제돼도 스냅샷은 삭제되지 않고 S3에 보관이 됩니다.
+    - 다른 리전으로 복제를 하거나 다른 계정에 공유할 수 있어요.
+
+### AWS RDS Read Replica
+
+- 대규모 서비스 트래픽을 분산처리하기 위해서 데이터베이스 읽기 작업만 지원하는 복제 데이터 베이스 입니다.
+- 최대 15개의 읽기 전용 복제 본을 리전, 가용영역에 걸쳐 구성 가능해요. 읽기 전용 복제본은 원본 데이터베이스 시스템이 다운될 경우 별도의 독립된 DB 인스턴스로 수동 승격이 가능해요.
+
+<img src='/img/blog/aws/2025-07-23/img2.png' width={600} />
+
+
+### AWS RDS Multi AZ(가용영역)
+
+- Write Database를 Active-StanBy 형태로 이중화 구성이 되어있어 장애 대비 자동 복구 대응을 할 수 있어요.
+- Read Replica의 쓰기 전용 데이터베이스 승격과 유사하지만 다운타임이 없어요.
+- 예비용 인스턴스를 하나 더 생성하기 때문에 기존 대비 비용이 2배 증가합니다.
+- 성능향상에 대한 이점보다는 고가용성을 확보하기 위한 옵션이에요.
+
+<img src='/img/blog/aws/2025-07-23/img3.png' width={600} />
+
+### Storage Auto-Scaling
+
+- 운영관리 과정에 디스크가 부족해지는 경우 자동으로 용량을 확장할 수 있도록 지원하는 기능입니다.
+- 전체 용량 중 여유 공간이 10% 미만인 상태가 5분 이상 지속되고 && 지난 6시간 동안 저장소가 변경된 이력이 없을 경우에 자동으로 확장됩니다.
+
+### RDS Storage Structure
+
+- Aurora에 저장되는 데이터는 최소 3개의 가용영역에서 데이터를 복제하여 6개의 사본으로 저장해요 (4/6 Quorum 방식)
+- 내부에서 데이터 손실이 발생해도 자체적으로 사본을 통해 자동 복구를 합니다.
+
+<img src='/img/blog/aws/2025-07-23/img4.png' width={600} />
+
+### Aurora Storage, Read Replica, Auto-Scaling
+
+- 데이터의 저장공간은 10GB ~ 128TB 까지 자동으로 사용하는 만큼 확장할 수 있어요.
+- 읽기 전용 복제본은 최대 15개 까지 Auto Scaling 설정이 가능해요. Writter instance에는 적용이 불가능해요.
+
+## Management Service
+
+### Cloud Formation
+
+개요
+- 인프라를 코드로 관리하게 해주는 서비스로, AWS 리소스의 생성, 관리, 업데이트를 자동화해줘요.
+- 코드를 템플릿 형태로 만들어서 관리하고, 템플릿을 통해 STACK을 생성하여 코드 내용을 기반으로 인프라를 생성합니다.
+
+<img src='/img/blog/aws/2025-07-23/img5.png' width={600} />
+
+### Cloud Watch
+
+개요
+- AWS 리소스나 Application의 모니터링 서비스입니다.
+- 운영 데이터를 수집, 분석, 시각화, 관리를 위한 통합 서비스에요
+
+주요구성은 아래와 같습니다.
+- Metrics : AWS 리소스에서 생성되는 Metric 수집 및 저장을 해요. Custom Metric 구성 및 수집/저장이 가능합니다. ex. EC2 CPU 사용률 등
+    - 거의 모든 리소스에서 대한 지표를 기본으로 제공해줘요.
+    - Metrics의 주요 구성 요소는 NameSpace, Metric Name, Dimension, Period가 있어요.
+
+<img src='/img/blog/aws/2025-07-23/img6.png' width={600} />
+
+- Logs : AWS 리소스에서 생성되는 Log 수집 및 저장을 해요. Custom 설정으로 Application, System, Log 추가 수집 및 저장 가능해요.
+    - Standard, Infrequent Access 2개의 클래스를 지원합니다.
+    - 로그의 주요 구성요소에는 Log Event, Log Stream, Log Group, Retention Period, Metrics Filter, Subscription Filter 이렇게 있어요.
+- Dashboards : Metric, Log를 시각화해요.
+- Alarms : Metric 데이터를 기준으로 Alarms를 설정합니다. 임계치 초과 시 SNS를 만들어 알림을 전송할 수 있어요.
+- CloudWatch Events : 이벤트를 수집하고 특정 리소스로 라우팅합니다. 기타 서비스와 연동하여 특정 작업을 자동으로 수행합니다.
+
+<img src='/img/blog/aws/2025-07-23/img7.png' width={600} />
+
+## Network Connectivity
+
+### VPC Peering
+
+개요
+- 서로 격리 되어 있는 2개 이상의 VPC의 네트워크를 연결하는 서비스입니다.
+- 동일 리전, 가용영역에서 발생하는 데이터 트래픽은 무료이지만 리전, 가용영역을 교차하는 데이터의 경우에는 트래픽에 따른 금액이 발생해요.
+- 전이적 피어링이 불가능하며, CIDR block이 겹치는 경우에도 VPC Peering 구성이 불가능해요.
+
+### VPC Endpoint
+
+개요
+- VPC 내부 리소스가 AWS Service에 접근할 때 Private Link를 사용해 사설 통신을 가능하게 해주는 서비스입니다.
+- 인터넷 게이트웨어, NAT 게이터으웨, VPN, Direct Connect를 사용하지 않고 사설 통신 구간을 이용해 AWS 서비스와 통신합니다.
+
+**Gateway Endpoint**
+S3, DynamoDB 서비스를 대상으로 private 연결을 제공, Routing Table을 통해 연결합니다. 무료로 사용 가능합니다.
+
+**Interface Endpoint**
+Private Link를 지원하는 서비스를 대상으로 Private 연결을 제공합니다. 지정한 VPC 내부에 Elastic Network Interface를 생성하여 통신을 지원해요.
+ENI와 AWS 서비스와 연결하여 Private 통신 구간이 활성화되는 구조이며, 트래픽에 따른 통신이 가능합니다.
+
+<img src='/img/blog/aws/2025-07-23/img8.png' width={600} />
