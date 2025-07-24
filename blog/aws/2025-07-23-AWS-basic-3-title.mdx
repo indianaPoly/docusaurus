@@ -116,3 +116,60 @@ Private Link를 지원하는 서비스를 대상으로 Private 연결을 제공�
 ENI와 AWS 서비스와 연결하여 Private 통신 구간이 활성화되는 구조이며, 트래픽에 따른 통신이 가능합니다.
 
 <img src='/img/blog/aws/2025-07-23/img8.png' width={600} />
+
+### Route 53
+
+- AWS에서 제공하는 완전 관리형 DNS 서버입니다. 도메인 구입 및 도메인 호스팅 관리릴 지원해요. 외부 도메인을 AWS Route53의 Hosted Zone에 등록하여 사용할 수 있습니다.
+- DNS Routing Policy를 통해 트래픽을 적합한 EndPoint로 라우팅합니다. 또한, 도메인 및 연결된 리소스에 대한 Health Check 기능을 제공해줍니다.
+- Route 53의 Public / Private Hosted Zone
+    - Public Hosted Zone : 인터넷에 연결된 모든 리소스에 접근 가능한 DNS 서비스를 제공해요.
+    - Private Hosted Zone : 특정 VPC 내부 리소스만 접근 가능한 Local DNS 서비스를 제공합니다. VPC 내부 리소스 간 통신을 위한 맞춤형 도메인을 제공해요.
+
+<img src="/img/blog/aws/2025-07-24/img1.png" width={600}/>
+
+**Public Hosted Zone**
+- 인터넷에 연결된 리소스의 DNS Record를 관리하는 저장소에요.
+- AWS 또는 외부에서 구매한 도메인을 등록하여 사용 가능해요. (반나절 저도의 시간을 ㄱ)
+
+**Private Hosted Zone**
+- VPC 내부 네트워크 리소스의 DNS Record를 관리하는 저장소에요.
+- VPC 내부 통신에만 사용되며, 인터넷에서 접근이 불가능합니다. Private DNS 이름을 사용해 내부 애플리케이션 간 통신을 최적화 할 수 있어요.
+
+<img src="/img/blog/aws/2025-07-24/img2.png" width={600}/>
+
+- Route 53에서 지원되는 DNS Records type은 아래와 같아요.
+    - A : 도메인 주소와 IPv4 주소를 직접 할당해요.
+    - AAAA : 도메인 주소와 IPv6 주소를 직접 할당해요.
+    - CNAME(Canonical Name Record) : 도메인 주소를 다른 도메인 주소에 할당해줘요. 
+    - MX : 도메인 주소를 이메일 서버에 할당해줘요. 등록 도메인 주소 정보를 이메일 주소로 사용합니다.
+    - NS : Name Server, 구매한 도메인을 관리하는 네임 서버 정보입니다.
+    - SOA : Start of Authority, 구입한 도메인에 대한 기본 정보가 담긴 레코드에요. Open Search로 로그를 검색, 분석, 시각화를 합니다.
+
+**Policy**
+
+1. Simple Policy
+- 단순한 방식으로 도메인에 대한 트래픽 리소스를 전달하는 방식입니다.
+- 1개의 레코드에 Multi value 설정이 가능해요.
+- Health Check 기능 사용은 할 수 없습니다.
+
+<img src="/img/blog/aws/2025-07-24/img3.png" width={600}/>
+
+2. Weighted
+- 단순한 방식으로 도메인에 대한 트래픽을 리소스로 전달하는 방식이에요.
+- 도메인에 등록된 리소스 마다 가중치를 적용해 트래픽의 양을 조절합니다. 레코드의 유형과 레코드의 이름을 동일하게 구성하고 각 레코드에 가중치를 설정합니다.
+
+<img src="/img/blog/aws/2025-07-24/img4.png" width={600}/>
+
+3. Latency
+- 응답 지연시간이 가장 적은 리소스의 정보를 반환하는 방식으로 사용합니다. 일정 기간 측정된 결과 값을 기준으로 라우팅해요.
+- 시간이 지남에 따라 다른 값을 반환 받을 수도 있습니다. 다중 리전 환경에서 클라이언트와 가장 근접한 리소스로 연결될 확률이 높아요.
+- Private Hosted Zone에 등록된 레코드에도 적용이 가능합니다.
+
+<img src="/img/blog/aws/2025-07-24/img5.png" width={600}/>
+
+4. Failover
+- Route 53에서 제공하는 상태 검사기를 이용해 정상 리소스 값을 반환하는 방식이에요. 하나의 기본 레코드와 보조 레코드로 구성합니다.
+
+5. Geolocation
+- Client의 위치 정보를 기반으로 가장 가까운 리전의 리소스 정보를 반환하는 방식이에요. 위치 정보와 레코드 반환 값을 Mapping하여 구성합니다.
+- EDNS(RFC 7871) 기능을 지원하는 않는 경우에 예상과 달리 동작할 수 있습니다.
