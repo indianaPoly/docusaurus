@@ -1,0 +1,101 @@
+---
+title: Next JS + gh Pages 배포 삽질 후기
+authors: [hyeonlim]
+tags: [TIL, Etc]
+---
+
+{/* truncate */}
+
+## 문제
+
+Next.js App Router(`app/` 디렉토리)로 만든 사이트를 GitHub Pages에 배포하는 와중에 아래와 같은 에러가 뜨는 것을 확인했습니다.
+
+```bash
+> next export
+⨯ next export has been removed in favor of 'output: export' in next.config.js
+```
+
+App Router에서는 `next export` 명령어가 **완전히 제거**되었다는 것을 알았습니다.. ㅠ
+
+## 올바른 설정 방법
+
+### 1. next.config.js 설정
+
+```typescript
+import type { NextConfig } from 'next';
+
+const nextConfig: NextConfig = {
+  output: 'export',
+  assetPrefix: 'https://<USERNAME>.github.io/<REPO_NAME>/',
+  trailingSlash: true, // 선택사항: URL 끝에 슬래시 추가
+};
+
+export default nextConfig;
+```
+
+**핵심**: `output: 'export'` 설정만 하면 `next build` 실행 시 자동으로 `out/` 폴더가 생성됩니다.
+
+### 2. package.json 스크립트
+
+```json
+{
+  "scripts": {
+    "build": "next build"
+  }
+}
+```
+
+❌ `"export": "next export"` 추가하면 안됩니다.
+✅ `build` 명령어만 있으면 됩니다.
+
+### 3. GitHub Actions 워크플로우
+
+```yaml
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths: ['app/**']
+  workflow_dispatch: {} # 수동 실행 가능
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+          cache-dependency-path: app/package-lock.json
+          
+      - name: Install dependencies
+        run: npm ci
+        working-directory: app
+        
+      - name: Build
+        run: npm run build
+        working-directory: app
+        
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./app/out
+```
+
+## 🔍 주요 변경사항 요약
+
+| 기존 Pages Router | 새로운 App Router |
+|------------------|-------------------|
+| `next export` 명령어 | `output: 'export'` 설정 |
+| 별도 export 단계 | `next build`에 통합 |
+| `out/` 수동 생성 | 자동 생성 |
+
+## 🎉 마무리
+
+`next export` 명령어에 의존하던 기존 방식에서 벗어나 `output: 'export'` 설정 하나로 깔끔하게 해결할 수 있다는 것을 알게 되었습니다.
