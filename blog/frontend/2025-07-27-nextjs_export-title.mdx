@@ -1,7 +1,7 @@
 ---
 title: Next JS + gh Pages 배포 삽질 후기
 authors: [hyeonlim]
-tags: [TIL, Etc]
+tags: [TIL, Frontend]
 ---
 
 {/* truncate */}
@@ -22,11 +22,11 @@ App Router에서는 `next export` 명령어가 **완전히 제거**되었다는 
 ### 1. next.config.js 설정
 
 ```typescript
-import type { NextConfig } from 'next';
+import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: 'export',
-  assetPrefix: 'https://<USERNAME>.github.io/<REPO_NAME>/',
+  output: "export",
+  assetPrefix: "https://<USERNAME>.github.io/<REPO_NAME>/",
   trailingSlash: true, // 선택사항: URL 끝에 슬래시 추가
 };
 
@@ -56,7 +56,7 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
-    paths: ['app/**']
+    paths: ["app/**"]
   workflow_dispatch: {} # 수동 실행 가능
 
 jobs:
@@ -65,22 +65,22 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 18
-          cache: 'npm'
+          cache: "npm"
           cache-dependency-path: app/package-lock.json
-          
+
       - name: Install dependencies
         run: npm ci
         working-directory: app
-        
+
       - name: Build
         run: npm run build
         working-directory: app
-        
+
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
@@ -90,11 +90,11 @@ jobs:
 
 ## 🔍 주요 변경사항 요약
 
-| 기존 Pages Router | 새로운 App Router |
-|------------------|-------------------|
+| 기존 Pages Router    | 새로운 App Router       |
+| -------------------- | ----------------------- |
 | `next export` 명령어 | `output: 'export'` 설정 |
-| 별도 export 단계 | `next build`에 통합 |
-| `out/` 수동 생성 | 자동 생성 |
+| 별도 export 단계     | `next build`에 통합     |
+| `out/` 수동 생성     | 자동 생성               |
 
 ## 🎉 마무리
 
