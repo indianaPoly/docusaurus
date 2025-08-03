@@ -1,34 +1,34 @@
 til:
   label: TIL
   permalink: /til
-  description: Today I Lean
+  description: 오늘 내가 무엇을 배웠는지 명시해둔 태그입니다. 전체 보기를 위해서 넣어두었습니다.
 
 docker:
   label: Docker
   permalink: /docker
-  description: docker
+  description: docker 및 docker-compose를 학습하면서 배운 점을 기록한 공간이에요.
 
 kubernetes:
   label: Kubernetes
   permalink: /kubernetes
-  description: kubernetes
+  description: kubernetes를 학습하면서 배운 점을 기록한 공간이에요.
 
 terraform:
   label: Terraform
   permalink: /terraform
-  description: terraform
+  description: terraform 학습하면서 배운 점을 기록한 공간이에요.
 
 etc:
   label: Etc
   permalink: /etc
-  description: etc
+  description: 개발 외적으로 배운 점을 기록한 공간이에요.
 
 aws:
   label: AWS
   permalink: /aws
-  description: aws
+  description: aws 공부하고 경험하면서 배운 점을 기록한 공간이에요.
 
 frontend:
   label: Frontend
   permalin: /frontend
-  description: 프론트엔드 개발을 하면서 배운 점을 기록해놓은 공간입니다.
+  description: 프론트엔드 개발을 하면서 배운 점을 기록한 공간이에요.
