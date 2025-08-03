@@ -27,3 +27,8 @@ aws:
   label: AWS
   permalink: /aws
   description: aws
+
+frontend:
+  label: Frontend
+  permalin: /frontend
+  description: 프론트엔드 개발을 하면서 배운 점을 기록해놓은 공간입니다.
