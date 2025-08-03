@@ -30,5 +30,5 @@ aws:
 
 frontend:
   label: Frontend
-  permalin: /frontend
+  permalink: /frontend
   description: 프론트엔드 개발을 하면서 배운 점을 기록한 공간이에요.
