@@ -1,0 +1,102 @@
+---
+title: Toggle Button translation 동작에 대해서
+authors: [hyeonlim]
+tags: [TIL, Frontend]
+---
+
+## transition의 기본 개념
+
+css의 transition은 어떤 속성 값이 바뀔 때 그 변화를 "즉시" 변경하는 것이 아니라, 일정 시간과 속도로 "서서히" 적용하는 기능이에요.
+
+값의 변화가 있다면 이를 점진적으로 변화시킵니다. 문법은 아래와 같이 확인할 수 있어요.
+
+```css
+.button {
+    transition: [속성] [지속시간] [타이밍 함수] [지연시간]
+
+    ex. transition: all 0.3s ease-in-out;
+}
+```
+
+### 속성
+
+속성은 어떤 css 속성이 바뀔 때 애니메이션을 적용할지에 지정해주어야 해요.
+- all을 사용하게 되면 모든 속성에 대해서 transition이 걸리기 때문에 편하게 할 수는 있지만 성능에 좋지 않아요.
+- 레이아웃에 영향을 주는 속성보다는, transform, opacity와 같은 속성을 쓰는 게 더 자연스러워요.
+
+### 지속시간
+
+속성이 변하는 데 걸리는 시간이에요. UI/UX에서는 보통 150ms ~ 500ms 사이가 가장 자연스럽다고 알려져있어요.
+
+### 타이밍 함수
+
+변화가 일어나는 속도의 곡선의 정의해요. 시간이 흐름에 따라 애니메이션이 빨라졌다, 느려졌다 하는 방식을 결정해요.
+
+- 기본값은 ease로 천천히 시작하였다가 빨라졌다가 천천히 끝나요. 가장 많이 사용되는 것은 ease-in-out과 같은 속성이 있어요.
+- 추가적으로 고급으로 사용할 수 있는 함수에는 `cubic-bezier` 함수가 있어요.
+
+```css
+.button {
+    transition: transform 0.6s cubic-bezier(x1, y1, x2, y2)
+}
+```
+
+이와 같이 사용을 할 수 있는데 x 값은 0에서 1사이의 값이고, y값은 제한이 없어요.
+
+## Toggle Button 사용 예시
+
+테마 변경 버튼을 만들어보는 예시를 통해서 어떻게 동작이 되는지 보다 명확하게 파악할 수 있어요. 여기서 실수하면 안되는 것은 부모의 transition은 자식의 속성 값 변경에 대해서 영향을 주지 않아요. 따라서 불필요한 코드 작성은 안하도록 하는 것이 중요해요.
+
+```tsx
+'use client'
+
+export function ThemeToggleButton() {
+    const [dark, setDark] = useState(false)
+
+    useEffect(() => {
+        const currentTheme = getTheme() // 외부에서 다크 모드에 대한 값을 가져옴.
+
+        /**
+            if (currentTheme === 'dark') {
+               setDark(true);
+            } else {
+               setDart(false);
+            }
+        */
+
+        setDart(currentTheme === 'dark') // 위와 같이 길어지는 것을 간단하게 줄여주는게 중요해요.
+    }, [])
+
+    const handleToggle = () => {
+        const newTheme = dark ? 'light' : "dark" // 다크 모드이면 라이트모드로 변경, 다크 모드가 아니면 다크 모드로 변경해요
+        setTheme(newTheme) // 외부 함수를 통해 전체 모드를 변경을 해주어요.
+        setDark(!dark)
+    }
+
+    return (
+        <div onClick={handleToggle}>
+            <div style={{
+                left: `${dark ? 'calc(100% - 34px)' : '2px'}`
+                transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
+            }}>
+                <div style={{
+                    opacity: `${dark ? 0 : 1}`
+                    transition: "all 0.3s ease"
+                }}>
+                    <img style={{
+                        src: "/light.svg"
+                    }} />
+                </div>
+                <div style={{
+                    opacity: `${dark ? 1 : 0}`
+                    transition: "all 0.3s ease"
+                }}>
+                    <img style={{
+                        src: "/dark.svg"
+                    }} />
+                </div>
+            </div>
+        </div>
+    )
+}
+```
