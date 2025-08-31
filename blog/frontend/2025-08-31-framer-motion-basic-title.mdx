@@ -1,0 +1,171 @@
+---
+title: framer-motion basic
+authors: [hyeonlim]
+tags: [TIL, Frontend]
+---
+
+## framer motion
+
+회사에서 인터렉티브한 디자인을 구현하기 위해서 framer-motion을 도입을 하였습니다. 
+애니메이션에 대해서 기초가 부족하다고 판단하여 framer-motion의 기본을 익히고 실전에 사용할 수 있는 튜토리얼을 직접 만들어 보면서 성장해보고자 합니다.
+
+### Basic
+
+- AnimatePresence : 컴포넌트가 React 트리를 떠날 때 (unmount) 애니메이션을 할 수 있도록 지원하는 컴포넌트
+- initial : 컴포넌트가 처음 렌더링될 때의 상태를 정의한다.
+- animate : 컴포넌트의 최종 상태를 정의함. (컴포넌트의 상태가 변동이 될 때마다 애니메이션을 다시 실행)
+
+```tsx
+import { MotionDiv } from './motion' // export const MotionDiv = motion.div 로 처리
+
+const [open, setOpen] = useState(false);
+
+<AnimatePresence>
+    {open && (
+        <MotionDiv initial={{
+            opacity: 0,
+            y: -50
+        }} animate={{
+            opacity: 1,
+            y: 0
+        }} transition={{
+            duration: 0.5
+        }} exit={{
+            opacity: 0,
+            y: 50
+        }}>
+            내용은 아래와 같습니다.
+        </MotionDiv>
+    )}
+</AnimatePresence> 
+<button onClick={() => setOpen(!open)}>{open ? "Close" : "Open"}</button>
+```
+
+위 내용을 정리해보면 아래와 같은 흐름을 이해할 수 있어요.
+1. 초기 상태일 때는 opacity: 0, y: -50 값을 가지게 되고 내용이 보이지 않게 돼요.
+2. 버튼이 눌리게 되면 open(상태)가 변경이 되고 animate로 값이 변동이 되는데 이 때 initial -> animate까지 갈 때의 과정을 transition 에서 0.5s로 설정하여 처리할 수 있어요. 즉 위에서 아래로 내려가는 과정을 애니메이션으로 표현을 해줄 수 있어요.
+3. 그리고 다시 버튼이 눌리게 되면 open(상태)가 변경이 되고 MotionDiv 컴포넌트가 없어지게 되는데 (React Tree를 떠나요) 이 때는 exit 값을 통해서 위에서 아래로 사라지는 모습을 확인할 수 있어요. 이 때 AnimatePresence를 활용해서 React Tree에서 없어지는 것을 확인할 수 있어요.
+
+### Hover And Tap (Basic)
+
+Hover and Tap은 whileHover, whileTap을 활용하여 상태를 감지할 수 있어요. 여기서 whileHover와 whileTap을 좀 더 쉽게 처리하기 위해서 variants를 정의해주면 쉽게 사용할 수 있어요.
+
+```tsx
+const box: React.CSSProperties = {
+    width: 100,
+    height: 100,
+    backgroundColor: "#0cdcf7",
+    borderRadius: "10px",
+}
+
+<MotionDiv 
+    style={box}
+    variants={boxVariants} 
+    whileHover="hover" 
+    whileTap="tap"
+>
+    호버 및 클릭을 해보세요.
+</MotionDiv>
+
+const boxVariants = {
+    hover: {
+        scale: 1.1,
+        rotate: 5,
+        boxShadow: "0px 0px 10px 0px rgba(0, 0, 0, 0.5)"
+    },
+    tap: {
+        scale: 0.9,
+        rotate: -10,
+        boxShadow: "0px 0px 10px 0px rgba(0, 0, 0, 0.5)"
+    }
+}
+```
+
+### Hover and Tap (Advanced)
+
+해당 컴포넌트가 Load가 되면 기본적으로 initial 상태가 "start라고 자식에게 전달을 해줘요. 그러면 자식은 start 대한 상태를 variants에서 찾아서 해당 애니메이션을 처리를 진행해요. 
+또한, 부모가 hover가 되면 grow 상태를 자식에게 전달해주고, variants에서 grow에 대한 애니메이션을 처리를 진행해요.
+
+즉 부모의 전달해주는 Props 값에 따라서 자식에게 다른 애니메이션을 처리해줄 수 있어요.
+
+```tsx
+<MotionDiv
+    style={{ ...box, position: "relative", overflow: "hidden" }}
+    initial="start" // 자식에게 initial 상태를 전파
+    whileHover="grow" // 자식에게 hover 상태를 전파
+>
+    <MotionDiv
+        style={{
+            position: "absolute",
+            top: "0",
+            left: "0",
+            width: 100,
+            height: 100,
+            borderRadius: "50%",
+            backgroundColor: "#3b82f6",
+        }}
+        variants={{
+            start: { scale: 0, opacity: 0, transition: { duration: 0.8, ease: "easeInOut" }}, // 부모로 부터 start를 받아 처리해요
+            grow: { scale: 4, opacity: 1, transition: { duration: 0.8, ease: "easeInOut" } }, // 부모로 부터 grow를 받아 처리해요
+        }}
+    />
+    <span style={{ position: "relative", zIndex: 1 }}>호버해보세요.</span>
+</MotionDiv>
+```
+
+### scroll event (Basic)
+
+scroll event를 구현하기 위해서는 해당 객체애 대한 정보가 필요로 해요. 이를 구현하기 위해서 scoll에 사용되는 객체에 대해서 ref를 지정을 해줍니다.
+
+useInView 함수에 ref 깂을 넘겨주면, ref값이 존재하는지 지속적으로 확인을 해요. 이 때 animate에 useInView(상태)에 대한 값을 넘겨주면 그에 따라 variant로 지정한 값을 처리를 해줄 수 있어요.
+
+```tsx
+import { AnimatePresence, useInView } from "framer-motion";
+import { MotionDiv } from "../../motions/motion";
+import { useRef, useState } from "react";
+
+function Item({title, delay}: {title: string, delay: number}) {
+    const ref = useRef(null)
+    const isInView = useInView(ref, {
+        once: true, // 한 번만 실행할 수 있는 옵션
+        amount: 0.5 // 구성 영역의 50% 이상이 뷰에 들어오면 애니메이션을 실행
+    })
+    return (
+        <MotionDiv style={{
+            width: '300px',
+            height: '200px',
+            backgroundColor: "#2940a8",
+            borderRadius: '10px',
+            marginTop: '50px'
+        }} ref={ref} variants={{
+            hidden: { opacity: 0, y: 75 },
+            visible: { opacity: 1, y: 0 }
+        }} initial="hidden" animate={isInView ? "visible" : "hidden"} transition={{ duration: 0.5, delay: delay }}>
+            {title}
+        </MotionDiv>
+    );
+}
+
+export default function MotionComponent1() {
+
+    return (
+        <div style={{
+            display: "flex", 
+            flexDirection: "column", 
+            width: '100%', 
+            minHeight: '500vh',
+            justifyContent: "center",
+            alignItems: "center"
+
+        }}>
+            <div style={{
+                marginTop: '100vh',
+            }}>
+                <Item key="1" title="1" delay={0.5} />
+                <Item key="2" title="2" delay={0.7} />
+                <Item key="3" title="3" delay={0.9} />
+            </div>
+        </div> 
+    );
+}
+```
