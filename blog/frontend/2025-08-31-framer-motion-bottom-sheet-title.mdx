@@ -1,0 +1,168 @@
+---
+title: bottom-sheet 구현
+authors: [hyeonlim]
+tags: [TIL, Frontend]
+---
+
+{/* truncate */}
+
+## 개요
+
+최근 유튜브 숏츠를 보면서 bottom-sheet는 어떤식으로 구현할 수 있을까에 대한 고민을 하였습니다. 
+또한, 회사에서 웹뷰 기반의 서비스를 제작하고 있는데, 더욱 네이티브 앱과 같은 애니메이션이 필요함을 이해하고 이참에 학습을 해보는 목표를 가지게 되었어요.
+
+## 핵심
+
+bottom-sheet의 핵심은 
+
+1. drag을 함에 따라서 sheet의 높이가 커졌다 줄어들었다 하는 것이 핵심이에요. 이를 감지하는 무언가가 하나 필요합니다.
+2. 최대 높이에서는 더 이상 올라가지 않도록 하는 것이 필요하고 특정 임계점 이후로는 자동으로 받히는 로직이 추가적으로 필요했습니다.
+3. bottom-sheet가 보이는 첫 시점에서는 아래에서 위로 올라오는 로직이 추가적이로 필요합니다.
+
+### Y, height
+
+여기를 구현함에 있어서 제일 헷갈렸던 부분은 Y, height 에요. 기본적으로 높이는 아래에서 위로 커지는 구조라고 한다면 Y는 최상단이 0이고 값이 커질수록 현재 보여지는 window 창에서 아래로 내려옵니다.
+
+즉 window.heigth * 0.3를 하면 위에서 30% 내려오는 것이고 아래로 관점을 바꾸면 전체의 70%에 위치해있다는 것이에요. 이를 잘 생각해서 로직을 작성해야합니다.
+
+y의 시작은 window.innerHeight 값을 주어서 보여지는 window의 최상단을 기준점으로 잡아주어요. 이 때 `useMotionValue` hook을 사용해주어요.
+
+useMotionValue로 정의된 값은 값이 변동해도 리랜더링을 발생시키지 않아요. 또한 y축의 변동으로 bottom sheet를 구현하기 때문에 y축의 값을 실시간 추적도 가능해져요.
+
+그리고 높이의 경우에는 `useTranform` hook을 사용해줍니다. 해당 hook은 특정 값을 다른 값으로 변환을 해줍니다. 
+
+현재 y축을 기준으로 bottom sheet DOM의 실제 높이를 계산해야하기 때문에 아래와 같이 변동을 해줄 수 있어요.
+
+```javascript
+const sheetHeight = useTransform(
+    y,                                          // 입력: y 좌표
+    [window.innerHeight * 0.2, window.innerHeight], // 입력 범위: 20vh ~ 100vh
+    [window.innerHeight * 0.8, 0],             // 출력 범위: 80vh ~ 0vh
+    { clamp: true }
+);
+```
+
+
+```tsx
+'use client'
+
+import { MotionDiv } from "../../motions/motion";
+import { useMotionValue, useTransform, animate } from "framer-motion";
+import { useState } from "react";
+
+export default function MotionComponent1() {
+    const [isVisible, setIsVisible] = useState(false); // 바텀시트 표시 상태
+    
+    // y는 DOM의 위치를 나타내는 값이고, height는 DOM의 실제 높이를 나타냅니다.
+    const y = useMotionValue(window.innerHeight); // 부모의 sheet y 좌표를 제어
+
+    // y 값에 따라서 높이를 계산 (bottom: 0 기준)
+    // y가 클수록 (아래로 갈수록) 높이가 작아짐
+    const sheetHeight = useTransform(
+        y,
+        [window.innerHeight * 0.2, window.innerHeight], // y값 범위: 20vh ~ 100vh
+        [window.innerHeight * 0.8, 0], // 높이 범위: 80vh ~ 0vh
+        { clamp: true }
+    );
+
+    return (
+        <>
+            {/* 바텀시트 열기 버튼 */}
+            <button
+                onClick={() => {
+                    setIsVisible(true);
+                    // sheet의 높이를 70vh까지 올립니다.
+                    animate(y, window.innerHeight * 0.3, { type: "spring", stiffness: 300, damping: 30 });
+                }}
+                style={{
+                    position: 'fixed',
+                    top: '50px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    padding: '15px 30px',
+                    backgroundColor: '#007AFF',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '25px',
+                    fontSize: '16px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    zIndex: 1000,
+                    boxShadow: '0 4px 15px rgba(0, 122, 255, 0.3)',
+                }}
+            >
+                바텀시트 열기
+            </button>
+
+            {/* 바텀 sheet의 높이는 useTransform을 사용해서 처리를 진행합니다. */}
+            {isVisible && (
+                <MotionDiv
+            style={{
+                width: '100%',
+                height: sheetHeight,
+                backgroundColor: 'black',
+                borderTopLeftRadius: '50px',
+                borderTopRightRadius: '50px',
+                position: 'fixed',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'flex-start',
+                paddingTop: '20px',
+                y,
+            }}
+        >
+            <MotionDiv
+                style={{
+                    width: '100%',
+                    height: '20px',
+                    cursor: 'grab',
+                    position: 'absolute', // 부모 기준 고정
+                    top: '20px',          // 항상 상단
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    display: 'flex',
+                    y: 0
+                }}
+                drag="y"
+                dragConstraints={{ top: 0, bottom: 0 }}
+                dragElastic={0}
+                dragTransition={{ bounceStiffness: 0, bounceDamping: 0 }}
+                // onDrag는 드래그를 하는 동안에 발생하는 함수 입니다.
+                onDrag={(_, info) => {
+                    // y 값은 커질 수록 위에서 아래로 향합니다.
+                    let newY = y.get() + info.delta.y; // 현재 y 높이에서 변화된 y값을 더함.
+
+                    // 최대 높이가 80vh보다 크면 80vh로 고정할 수 있도록 함
+                    if (newY < window.innerHeight * 0.2) newY = window.innerHeight * 0.2;
+
+                    // 최소 높이는 0vh로 설정할 수 있습니다.
+                    if (newY > window.innerHeight) newY = window.innerHeight;
+                    
+                    y.set(newY);
+                }}
+                // drag가 종료가 되면 onDragEnd 함수를 사용해서 최대 높이 닫기를 진행
+                onDragEnd={() => {
+                    const threshold = window.innerHeight * 0.5; // y축을 기준으로 계산을 진행함.
+
+                    // sheet의 최소 높이는 30vh입니다. 이것도다 y값이 크다는 것은 bottomSheet의 총 높이가 30vh보다 작고 그러면 닫기를 수행합니다.
+                    if (y.get() > threshold) {
+                        animate(y, window.innerHeight, { type: "spring", stiffness: 300, damping: 30 }).then(() => {
+                            setIsVisible(false);
+                        });
+                    } else if (y.get() < window.innerHeight * 0.2) {
+                        // 현재 높이가 80vh 보다 크게 되면 80vh로 고정을 하도록 합니다.
+                        animate(y, window.innerHeight * 0.2, { type: "spring", stiffness: 300, damping: 30 });
+                    } else {
+                        animate(y, y.get(), { type: "spring", stiffness: 300, damping: 30 });
+                    }
+                }}
+                dragMomentum={false}
+            >
+                <div style={{ width: '60px', height: '4px', backgroundColor: '#fff', borderRadius: '50px'}} />
+            </MotionDiv>
+        </MotionDiv>
+            )}
+        </>
+    );
+}
+```
